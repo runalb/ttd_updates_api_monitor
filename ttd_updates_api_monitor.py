@@ -3,14 +3,17 @@ import time
 import json
 from datetime import datetime
 import schedule
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 API_URL = "https://ttdevasthanams.ap.gov.in/cms/api/universal-latest-updates"
 
 # File to store the latest known data
-DATA_FILE = "latest_update_saved_data.json"
+DATA_FILE = "ttd_latest_update_saved_data.json"
 
 # File to log all JSON responses
-LOG_FILE = "api_response_data_log.json"
+LOG_FILE = "ttd_api_response_data_log.json"
 
 # Interval in seconds to check for updates (e.g., 60 seconds = 1 minutes)
 CHECK_INTERVAL = 60
@@ -38,7 +41,7 @@ def save_latest_data(data):
         json.dump(data, file)
 
 
-def log_response(data):
+def log_response(data, status):
     try:
         with open(LOG_FILE, "r") as file:
             log = json.load(file)
@@ -47,6 +50,7 @@ def log_response(data):
 
     timestamped_data = {
         "timestamp": datetime.now().isoformat(),
+        "status": status,
         "data": data
     }
 
@@ -56,53 +60,107 @@ def log_response(data):
 
 
 def check_for_updates():
-    print("\nChecking for updates...")
+    print(f"[{datetime.now().isoformat()}]")
+    print("Checking for updates...")
     latest_data = load_latest_data()
     new_data = fetch_data()
+    status = "Data feched"
 
     if new_data is None:
         print("No data fetched. Skipping this check.")
         return
 
-    log_response(new_data)
+    try:
+        new_entries = [entry for entry in new_data if entry not in latest_data]
 
-    new_entries = [entry for entry in new_data if entry not in latest_data]
+        if new_entries:
+            save_latest_data(new_data)
+            status = "New updates found"
+            print("[*] New updates found! :")
 
-    if new_entries:
-        save_latest_data(new_data)
-        for entry in new_entries:
-            print("\n[*] New updates found! :")
-            print(f"{entry['attributes']['data']}")
-            print(f"updatedAt: {entry['attributes']['updatedAt']}")
-            print(f"createdAt: {entry['attributes']['createdAt']}")
-            # print('\n')
-    else:
-        print("No new updates found.")
+            for entry in new_entries:
+                data = entry['attributes']['data']
+                updated_at = entry['attributes']['updatedAt']
+                created_at = entry['attributes']['createdAt']
+
+                # print(f"{data}")
+                # print(f"  updatedAt: {updated_at}")
+                # print(f"  createdAt: {created_at}")
+                # print('\n')
+
+                # Send email for each new update
+                subject = "TTD New Update Found - " + datetime.now().isoformat() 
+                body = f"\n{data}\n- Updated At: {updated_at}\n- Created At: {created_at}"
+                print(body)
+                send_email(subject, body, "hello@runalb.com")
+
+        else:
+            status = "No new updates found"
+            print(status)
+
+    except Exception as e:
+        status = "Exception Occurs: " + str(e)
+        print("Failed to process new data.")
+        print("Error:\n",e)
+
+    finally:
+        # Log the fetched data
+        log_response(new_data, status)
+
+    print()
 
 
 # def main():
-#     while True:
+#     # while True:
 #         check_for_updates()
 #         time.sleep(CHECK_INTERVAL)
-
 
 
 # START - Schedule
 def job():
     check_for_updates()
+    check_for_updates()
+    print("Sleep...\n")
+
 
 def main():
-    print("Script Runing...")
+    print("Script Runing...\n")
+    job()
 
     # Schedule the job to run at specified time
-    schedule.every().day.at("11:00").do(job) #11AM
-    schedule.every().day.at("19:00").do(job) #07PM
+    schedule.every().day.at("11:00").do(job)  # 11AM
+    schedule.every().day.at("19:00").do(job)  # 07PM
     # schedule.every().day.at("22:55").do(job) #test
 
     while True:
         schedule.run_pending()
         time.sleep(600)  # wait 10 minute
 # END - Schedule
+
+
+def send_email(subject, body, to_address):
+    from_address = "sender email"
+    password = "sender password"
+
+    # Create the email
+    msg = MIMEMultipart()
+    msg['From'] = from_address
+    msg['To'] = to_address
+    msg['Subject'] = subject
+
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        # Connect to the server and send the email
+        server = smtplib.SMTP('smtp.gmail.com', 587)  # Update with your SMTP server and port
+        server.starttls()
+        server.login(from_address, password)
+        text = msg.as_string()
+        server.sendmail(from_address, to_address, text)
+        server.quit()
+        print(f"- Email sent to: {to_address}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
 
 
 if __name__ == "__main__":
