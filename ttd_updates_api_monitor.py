@@ -67,7 +67,7 @@ def check_for_updates():
     status = "Data feched"
 
     if new_data is None:
-        print("No data fetched. Skipping this check.")
+        print("No data fetched. Skipping this check.\n")
         return
 
     try:
@@ -89,10 +89,10 @@ def check_for_updates():
                 # print('\n')
 
                 # Send email for each new update
-                subject = "TTD New Update Found - " + datetime.now().isoformat() 
+                subject = "TTD API - New Update Found - " + datetime.now().isoformat() 
                 body = f"\n{data}\n- Updated At: {updated_at}\n- Created At: {created_at}"
                 print(body)
-                send_email(subject, body, "hello@runalb.com")
+                send_email(subject, body, "runal.banarse@gmail.com")
 
         else:
             status = "No new updates found"
@@ -106,8 +106,8 @@ def check_for_updates():
     finally:
         # Log the fetched data
         log_response(new_data, status)
-
-    print()
+        print()
+    
 
 
 # def main():
@@ -118,9 +118,17 @@ def check_for_updates():
 
 # START - Schedule
 def job():
-    check_for_updates()
-    check_for_updates()
-    print("Sleep...\n")
+    try:
+        check_for_updates()
+        check_for_updates()
+        print("Sleep...\n")
+
+    except Exception as e:
+        print("Exception Occurs:\n" + str(e))
+        # Send email
+        subject = "TTD API - Error - " + datetime.now().isoformat() 
+        body = "Exception Occurs:\n\n" + str(e)
+        send_email(subject, body, "hello@runalb.com")
 
 
 def main():
@@ -165,3 +173,4 @@ def send_email(subject, body, to_address):
 
 if __name__ == "__main__":
     main()
+ 
